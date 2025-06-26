@@ -8,7 +8,6 @@ import { useNavigation } from '@react-navigation/native'
 import * as CTEXT from '../assets/CustomText'
 import { SvgXml } from 'react-native-svg'
 import { LoginWithFirebaseHandle, RegisterWithFirebaseHandle } from '../assets/component'
-import { createUserWithEmailAndPassword, getAuth, signInWithEmailAndPassword, updateProfile } from 'firebase/auth'
 import { currentSetUser, RootContext } from '../data/store'
 import { saveUser } from '../data/storageFunc'
 import getColor from '../assets/getColor'
@@ -24,13 +23,11 @@ export default function Login() {
     const [email, setEmail] = React.useState('')
     const [letAgree, setLetAgree] = React.useState(false)
 
-    let auth = getAuth();
-
     const handleLogin = async () => {
-        await LoginWithFirebaseHandle(email, passWord, navigation, signInWithEmailAndPassword, auth, dispatch, currentSetUser, saveUser)
+        await LoginWithFirebaseHandle(email, passWord, navigation, dispatch, currentSetUser, saveUser)
     }
     const handleRegister = async () => {
-        await RegisterWithFirebaseHandle(navigation, createUserWithEmailAndPassword, updateProfile, auth, dispatch, currentSetUser, saveUser, email, useName, passWord,)
+        await RegisterWithFirebaseHandle(navigation, dispatch, currentSetUser, saveUser, email, useName, passWord)
     }
 
     const Login = () => {

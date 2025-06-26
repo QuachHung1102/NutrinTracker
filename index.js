@@ -15,6 +15,15 @@ import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 import Config from "react-native-config";
 
+// Disable console logs in release builds
+if (!__DEV__) {
+    console.log = () => {};
+    console.warn = () => {};
+    console.error = () => {};
+    console.info = () => {};
+    console.debug = () => {};
+}
+
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
 
@@ -22,12 +31,11 @@ import Config from "react-native-config";
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
     apiKey: Config.ENV_FIREBASE_API_KEY,
-    // TODO: use evn variable for this api
-    authDomain: "ss2024-5303e.firebaseapp.com",
-    projectId: "ss2024-5303e",
-    storageBucket: "ss2024-5303e.appspot.com",
-    messagingSenderId: "197524388996",
-    appId: "1:197524388996:web:1d06dbb48ae36b8ad216d1"
+    authDomain: Config.ENV_FIREBASE_AUTH_DOMAIN,
+    projectId: Config.ENV_FIREBASE_PROJECT_ID,
+    storageBucket: Config.ENV_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: Config.ENV_FIREBASE_MESSAGING_SENDER_ID,
+    appId: Config.ENV_FIREBASE_APP_ID
 };
 
 // Initialize Firebase

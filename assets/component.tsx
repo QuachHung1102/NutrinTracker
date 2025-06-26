@@ -5,6 +5,9 @@ import { PermissionsAndroid } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Dimensions } from "react-native";
 
+// Firebase imports
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+
 // style import
 import styles from "./stylesheet";
 import { vw, vh, vmax, vmin } from './stylesheet';
@@ -187,23 +190,18 @@ export function formatNumber(num: number, changeToChar: boolean = true) {
 }
 
 /**
- * 
- * @param email 
- * @param password 
- * @param navigation 
- * @param signInWithEmailAndPassword 
- * @param auth 
- * @param dispatch 
- * @param setUser 
- * @param saveUser 
- * @returns 
+ * Login function with Firebase authentication
+ * @param email - User email
+ * @param password - User password
+ * @param navigation - Navigation object
+ * @param dispatch - Redux dispatch function
+ * @param setUser - Redux action to set user
+ * @param saveUser - Function to save user to storage
  */
 export async function LoginWithFirebaseHandle(
     email: string,
     password: string,
     navigation: any,
-    signInWithEmailAndPassword: (auth: any, email: string, password: string) => Promise<any>,
-    auth: any,
     dispatch: (action: any) => void,
     setUser: (user: any) => any,
     saveUser: (user: any) => void
@@ -213,6 +211,9 @@ export async function LoginWithFirebaseHandle(
     if (email === '' || password === '') {
         return Alert.alert('Vui lòng điền đủ thông tin');
     }
+
+    const auth = getAuth();
+    
     try {
         await signInWithEmailAndPassword(auth, email, password)
             .then((userCredential) => {
@@ -229,40 +230,78 @@ export async function LoginWithFirebaseHandle(
                     saveUser(userObj)
                     dispatch(setUser(userObj));
                 } else {
-                    return Alert.alert('Email hoặc mật khẩu bạn nhập chưa đúng')
+                    return Alert.alert('Đăng nhập thất bại', 'Email hoặc mật khẩu bạn nhập chưa đúng')
                 }
             }).then(() => {
                 return navigation.navigate('BottomTab' as never)
             })
+            .catch((error) => {
+                // Handle Firebase authentication errors with user-friendly messages
+                let errorMessage = 'Có lỗi xảy ra khi đăng nhập';
+                
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                        errorMessage = 'Không tìm thấy tài khoản với email này. Vui lòng kiểm tra lại hoặc đăng ký tài khoản mới.';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage = 'Mật khẩu không đúng. Vui lòng thử lại.';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage = 'Email không hợp lệ. Vui lòng nhập đúng định dạng email.';
+                        break;
+                    case 'auth/user-disabled':
+                        errorMessage = 'Tài khoản này đã bị vô hiệu hóa. Vui lòng liên hệ hỗ trợ.';
+                        break;
+                    case 'auth/too-many-requests':
+                        errorMessage = 'Quá nhiều lần đăng nhập thất bại. Vui lòng thử lại sau.';
+                        break;
+                    case 'auth/invalid-credential':
+                        errorMessage = 'Email hoặc mật khẩu không đúng. Vui lòng kiểm tra lại.';
+                        break;
+                    default:
+                        errorMessage = 'Email hoặc mật khẩu bạn nhập chưa đúng';
+                        break;
+                }
+                
+                Alert.alert(
+                    'Đăng nhập thất bại',
+                    errorMessage,
+                    [
+                        {
+                            text: 'Đóng',
+                            style: 'default'
+                        }
+                    ]
+                );
+                
+                // Only log in development mode
+                if (__DEV__) {
+                    console.error('Login error:', error);
+                }
+            })
     } catch (error) {
-        console.log(error)
-        return Alert.alert('Email hoặc mật khẩu bạn nhập chưa đúng')
+        // Only log in development mode
+        if (__DEV__) {
+            console.log(error);
+        }
+        return Alert.alert('Đăng nhập thất bại', 'Email hoặc mật khẩu bạn nhập chưa đúng')
     }
 }
 
 
 /**
- * Registers a user with Firebase, updates the user profile, saves the user data, and navigates to the 'BottomTab' screen.
- *
- * @param {any} navigation - The navigation object used to navigate between screens.
- * @param {(auth: any, email: string, password: string) => Promise<any>} createUserWithEmailAndPassword - Function to create a user with email and password.
- * @param {(user: any, profile: any) => Promise<any>} updateProfile - Function to update the user profile.
- * @param {any} auth - The Firebase authentication object.
- * @param {(action: any) => void} dispatch - Function to dispatch actions to the Redux store.
- * @param {(user: any) => any} setUser - Function to set the user in the Redux store.
- * @param {(user: any) => void} saveUser - Function to save the user data.
- * @param {string} email - The email of the user.
- * @param {string} userName - The name of the user.
- * @param {string} password - The password of the user.
- * @param {...{ [key: string]: any }[]} params - Additional parameters to be merged into the user object.
- * @returns {Promise<void>} A promise that resolves when the registration process is complete.
- * @throws Will throw an error if the registration process fails.
+ * Register function with Firebase authentication
+ * @param navigation - The navigation object used to navigate between screens
+ * @param dispatch - Function to dispatch actions to the Redux store
+ * @param setUser - Function to set the user in the Redux store
+ * @param saveUser - Function to save the user data
+ * @param email - The email of the user
+ * @param userName - The name of the user
+ * @param password - The password of the user
+ * @param params - Additional parameters to be merged into the user object
  */
 export async function RegisterWithFirebaseHandle(
     navigation: any,
-    createUserWithEmailAndPassword: (auth: any, email: string, password: string) => Promise<any>,
-    updateProfile: (user: any, profile: any) => Promise<any>,
-    auth: any,
     dispatch: (action: any) => void,
     setUser: (user: any) => any,
     saveUser: (user: any) => void,
@@ -271,10 +310,11 @@ export async function RegisterWithFirebaseHandle(
     password: string,
     ...params: { [key: string]: any }[]
 ) {
+    const auth = getAuth();
+    
     try {
-        // TODO: firebase auth
-        createUserWithEmailAndPassword(auth, email, password)
-            .then((userCredential) => {
+        await createUserWithEmailAndPassword(auth, email, password)
+            .then((_userCredential) => {
                 let user = auth.currentUser;
                 const avtURL = params.find(param => param.hasOwnProperty('avtURL'))?.avtURL || '';
                 if (user && avtURL) {
@@ -283,22 +323,22 @@ export async function RegisterWithFirebaseHandle(
                         photoURL: avtURL,
                     })
                         .then(() => {
-                            console.log("User profile updated.");
+                            // Only log in development mode
+                            if (__DEV__) {
+                                console.log("User profile updated.");
+                            }
                         })
                         .catch((error) => {
-                            console.error("Error updating profile:", error);
+                            // Only log in development mode
+                            if (__DEV__) {
+                                console.error("Error updating profile:", error);
+                            }
                         });
                 }
             })
             .then(() => {
                 /**
                  * Creates a user object with the provided email, name, password, and additional parameters.
-                 *
-                 * @param {string} email - The email of the user.
-                 * @param {string} userName - The name of the user.
-                 * @param {string} password - The password of the user.
-                 * @param {Array<Object>} params - An array of additional parameters to be merged into the user object.
-                 * @returns {Object} The user object containing email, name, password, and additional parameters.
                  */
                 let user = {
                     email: email,
@@ -312,9 +352,53 @@ export async function RegisterWithFirebaseHandle(
             .then(() => {
                 return navigation.navigate('BottomTab' as never)
             })
+            .catch((error) => {
+                // Handle Firebase authentication errors with user-friendly messages
+                let errorMessage = 'Có lỗi xảy ra khi đăng ký tài khoản';
+                
+                switch (error.code) {
+                    case 'auth/email-already-in-use':
+                        errorMessage = 'Email này đã được sử dụng để đăng ký. Vui lòng sử dụng email khác hoặc đăng nhập.';
+                        break;
+                    case 'auth/invalid-email':
+                        errorMessage = 'Email không hợp lệ. Vui lòng nhập đúng định dạng email.';
+                        break;
+                    case 'auth/weak-password':
+                        errorMessage = 'Mật khẩu quá yếu. Vui lòng sử dụng mật khẩu mạnh hơn (ít nhất 6 ký tự).';
+                        break;
+                    case 'auth/operation-not-allowed':
+                        errorMessage = 'Đăng ký bằng email và mật khẩu hiện không được phép.';
+                        break;
+                    case 'auth/too-many-requests':
+                        errorMessage = 'Quá nhiều yêu cầu đăng ký. Vui lòng thử lại sau.';
+                        break;
+                    default:
+                        errorMessage = `Lỗi đăng ký: ${error.message}`;
+                        break;
+                }
+                
+                Alert.alert(
+                    'Đăng ký thất bại',
+                    errorMessage,
+                    [
+                        {
+                            text: 'Đóng',
+                            style: 'default'
+                        }
+                    ]
+                );
+                
+                // Only log in development mode
+                if (__DEV__) {
+                    console.error('Registration error:', error);
+                }
+            })
 
     } catch (error) {
-        console.log(error)
+        // Only log in development mode
+        if (__DEV__) {
+            console.log(error);
+        }
     }
 }
 

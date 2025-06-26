@@ -1,33 +1,29 @@
-import Storage from 'react-native-storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import * as FORMATDATA from './interfaceFormat';
 import { factoryData } from './factoryData';
 
-const storage = new Storage({
-  // maximum capacity, default 1000 key-ids
-  size: 1000,
+// Helper functions for AsyncStorage operations
+const setItem = async (key: string, value: any): Promise<void> => {
+  await AsyncStorage.setItem(key, JSON.stringify(value));
+};
 
-  // Use AsyncStorage for RN apps, or window.localStorage for web apps.
-  // If storageBackend is not set, data will be lost after reload.
-  storageBackend: AsyncStorage, // for web: window.localStorage
+const getItem = async <T>(key: string): Promise<T | null> => {
+  const value = await AsyncStorage.getItem(key);
+  return value ? JSON.parse(value) : null;
+};
 
-  // expire time, default: 1 day (1000 * 3600 * 24 milliseconds).
-  // can be null, which means never expire.
-  defaultExpires: null,
+const removeItem = async (key: string): Promise<void> => {
+  await AsyncStorage.removeItem(key);
+};
 
-  // cache data in the memory. default is true.
-  enableCache: true,
+const getAllKeys = async (): Promise<readonly string[]> => {
+  return AsyncStorage.getAllKeys();
+};
 
-  // if data was not found in storage or expired data was found,
-  // the corresponding sync method will be invoked returning
-  // the latest data.
-  sync: {
-    // Sync method for retrieving data from the server
-  },
-});
-
-export default storage;
+const multiGet = async (keys: string[]): Promise<readonly [string, string | null][]> => {
+  return AsyncStorage.multiGet(keys);
+};
 
 /**
  * Saves the user data to storage.
@@ -37,10 +33,7 @@ export default storage;
  */
 export const saveUser = async (data: FORMATDATA.UserFormat): Promise<boolean> => {
   try {
-    await storage.save({
-      key: 'user',
-      data: data,
-    });
+    await setItem('user', data);
     return true;
   } catch (error) {
     Alert.alert('Failed to save user');
@@ -56,10 +49,8 @@ export const saveUser = async (data: FORMATDATA.UserFormat): Promise<boolean> =>
  */
 export const getUser = async (): Promise<FORMATDATA.UserFormat | false> => {
   try {
-    const ret: FORMATDATA.UserFormat = await storage.load({
-      key: 'user',
-    });
-    return ret;
+    const ret: FORMATDATA.UserFormat | null = await getItem<FORMATDATA.UserFormat>('user');
+    return ret || false;
   } catch (error) {
     console.log('Failed to get user:', error);
     return false;
@@ -74,9 +65,7 @@ export const getUser = async (): Promise<FORMATDATA.UserFormat | false> => {
  */
 export const removeUser = async (): Promise<boolean> => {
   try {
-    await storage.remove({
-      key: 'user',
-    });
+    await removeItem('user');
     return true;
   } catch (error) {
     console.log('Failed to remove user:', error);
@@ -88,78 +77,85 @@ export const removeUser = async (): Promise<boolean> => {
 
 export const saveRecipeWithID = async (data: FORMATDATA.RecipeFormat, id: string): Promise<boolean> => {
   try {
-    await storage.save({
-      key: 'recipe',
-      data: data,
-      id: id,
-    });
+    await setItem(`recipe_${id}`, data);
     return true;
   } catch (error) {
     Alert.alert('Failed to save recipe');
     console.log('Failed to save recipe:', error);
     return false;
   }
-}
+};
 
 export const getRecipeList = async (): Promise<FORMATDATA.RecipeFormat[] | false> => {
   try {
-    const ret: FORMATDATA.RecipeFormat[] = await storage.getAllDataForKey('recipe');
-    return ret;
+    const keys = await getAllKeys();
+    const recipeKeys = keys.filter(key => key.startsWith('recipe_'));
+    if (recipeKeys.length === 0) {
+      return [];
+    }
+    
+    const recipes = await multiGet(recipeKeys);
+    const recipeList: FORMATDATA.RecipeFormat[] = [];
+    
+    for (const [, value] of recipes) {
+      if (value) {
+        recipeList.push(JSON.parse(value));
+      }
+    }
+    
+    return recipeList;
   } catch (error) {
     console.log('Failed to get recipe list:', error);
     return false;
   }
-}
+};
 
 export const getRecipeById = async (id: string): Promise<FORMATDATA.RecipeFormat | false> => {
   try {
-    const ret: FORMATDATA.RecipeFormat = await storage.load({
-      key: 'recipe',
-      id: id,
-    });
-    return ret;
+    const ret: FORMATDATA.RecipeFormat | null = await getItem<FORMATDATA.RecipeFormat>(`recipe_${id}`);
+    return ret || false;
   } catch (error) {
     console.log('Failed to get recipe by id:', error);
     return false;
   }
-}
+};
 
 export const removeRecipeById = async (id: string): Promise<boolean> => {
   try {
-    await storage.remove({
-      key: 'recipe',
-      id: id,
-    });
+    await removeItem(`recipe_${id}`);
     return true;
   } catch (error) {
     console.log('Failed to remove recipe:', error);
     return false;
   }
-}
+};
 
 export const clearRecipeList = async (): Promise<boolean> => {
   try {
-    await storage.clearMapForKey('recipe');
+    const keys = await getAllKeys();
+    const recipeKeys = keys.filter(key => key.startsWith('recipe_'));
+    
+    for (const key of recipeKeys) {
+      await removeItem(key);
+    }
+    
     return true;
   } catch (error) {
     console.log('Failed to clear recipe list:', error);
     return false;
   }
-}
+};
 
 export const saveTodayNutri = async (data: FORMATDATA.NutriFormat): Promise<boolean> => {
   try {
-    await storage.save({
-      key: 'todayNutri',
-      data: data,
-    });
+    await setItem('todayNutri', data);
     return true;
   } catch (error) {
     Alert.alert('Failed to save today nutrition');
     console.log('Failed to save today nutrition:', error);
     return false;
   }
-}
+};
 
 export const getTodayNutri = async (): Promise<FORMATDATA.NutriFormat> => {
   const defaultNutri: FORMATDATA.NutriFormat = {
@@ -170,9 +166,7 @@ export const getTodayNutri = async (): Promise<FORMATDATA.NutriFormat> => {
   };
 
   try {
-    const ret: FORMATDATA.NutriFormat = await storage.load({
-      key: 'todayNutri',
-    });
+    const ret: FORMATDATA.NutriFormat | null = await getItem<FORMATDATA.NutriFormat>('todayNutri');
     return ret || defaultNutri;
   } catch (error) {
     console.log('Failed to get today nutrition:', error);
@@ -209,29 +203,24 @@ export const AddRecipeToTodayNutri = async (id: string, nutri?: FORMATDATA.Nutri
     console.log('Failed to add recipe to today nutrition:', error);
     return false;
   }
-}
+};
 
 export const saveGoalNutri = async (data: FORMATDATA.NutriFormat): Promise<boolean> => {
   try {
-    await storage.save({
-      key: 'goalNutri',
-      data: data,
-    });
+    await setItem('goalNutri', data);
     return true;
   } catch (error) {
     Alert.alert('Failed to save nutrition goal');
     console.log('Failed to save nutrition goal:', error);
     return false;
   }
-}
+};
 
 export const getGoalNutri = async (): Promise<FORMATDATA.NutriFormat> => {
   const defaultNutri: FORMATDATA.NutriFormat = factoryData.targetNutri;
 
   try {
-    const ret: FORMATDATA.NutriFormat = await storage.load({
-      key: 'goalNutri',
-    });
+    const ret: FORMATDATA.NutriFormat | null = await getItem<FORMATDATA.NutriFormat>('goalNutri');
     return ret || defaultNutri;
   } catch (error) {
     console.log('Failed to get nutrition goal:', error);
